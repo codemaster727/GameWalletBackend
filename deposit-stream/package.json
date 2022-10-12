@@ -1,0 +1,24 @@
+{
+    "name": "crypto-trading-platform-data-stream",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "start": "node src/App.js",
+        "build": "tsc --build"
+    },
+    "dependencies": {
+        "@aws-sdk/client-sns": "^3.21.0",
+        "axios": "^0.21.1",
+        "ws": "^7.5.3",
+        "web3": "^1.7.5",
+        "@aws-sdk/client-dynamodb": "^3.25.0",
+        "@aws-sdk/lib-dynamodb": "^3.25.0"
+},
+    "devDependencies": {
+        "@types/node": "^14.14.31",
+        "@types/ws": "^7.4.6"
+    },
+    "engines": {
+        "node": ">=16.13.0"
+    }
+}

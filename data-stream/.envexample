@@ -1,0 +1,4 @@
+AWS_ACCESS_KEY_ID = 
+AWS_SECRET_ACCESS_KEY = 
+AWS_REGION = us-east-1
+DATA_STREAM_TOPIC = arn:aws:sns:us-east-1:908741890320:data-stream
