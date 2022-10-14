@@ -9,7 +9,7 @@ export async function handler(event: any) {
         TableName: "CryptoWallets",
         FilterExpression: "#user = :user",
         ExpressionAttributeNames: {
-            "#user": "user"
+            "#user": "user_id"
         },
         ExpressionAttributeValues: {
             ":user": request.user
@@ -18,10 +18,8 @@ export async function handler(event: any) {
 
     const wallets = response.Items?.flatMap(item => {
         return {
-            user: item.user,
-            portfolio: item.portfolio,
-            net: item.net,
-            address: item.address
+            net_id: item.net_id,
+            address: item.public_key
         }
     }) ?? []
     

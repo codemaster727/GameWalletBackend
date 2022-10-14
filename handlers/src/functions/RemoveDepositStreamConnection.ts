@@ -4,12 +4,12 @@ export async function handler(event: any) {
     await dynamoDBDocumentClient.delete({
         TableName: "CryptoAssetStreamConnections",
         Key: {
-            "id": event.requestContext.connectionId
+            "connectionId": event.requestContext.connectionId
         }
     })
     
     return {
         statusCode: 200,
-        body: "Disconnected"
+        body: JSON.stringify(event)
     }
 }

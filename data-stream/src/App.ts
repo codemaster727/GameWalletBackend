@@ -3,6 +3,7 @@ import { PublishCommand } from "@aws-sdk/client-sns"
 import { PriceData } from "./data/PriceData"
 import { snsClient } from "./resources/Clients"
 import axios from "axios"
+import { Token } from "../../server/src/data/Token"
 
 const connection = new WebSocket("wss://ws-feed.pro.coinbase.com")
 const updateInterval = 1000 * 2
@@ -85,13 +86,13 @@ connection_for_bnb.on("message", (data: any) => {
 })
 
 async function getSupportedCurrencyPairs(): Promise<string[]> {
-    const supportedAssets: string[] = await axios.get("https://t1ku4pvu63.execute-api.eu-west-1.amazonaws.com/default/GetSupportedAssets").then(response => response.data)
-    const supportedCurrencies: string[] = await axios.get("https://t1ku4pvu63.execute-api.eu-west-1.amazonaws.com/default/GetSupportedCurrencies").then(response => response.data)
-    return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `${asset}-${currency}`))
+    const supportedAssets: Token[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedAssets").then(response => response.data)
+    const supportedCurrencies: string[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then(response => response.data)
+    return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `${asset.name}-${currency}`))
 }
 
 async function getBNBCurrencyPairs(): Promise<string[]> {
     const supportedAssets: string[] = ["BNB"]
-    const supportedCurrencies: string[] = await axios.get("https://t1ku4pvu63.execute-api.eu-west-1.amazonaws.com/default/GetSupportedCurrencies").then(response => response.data)
+    const supportedCurrencies: string[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then(response => response.data)
     return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `5~CCCAGG~${asset}~${currency}`))
 }

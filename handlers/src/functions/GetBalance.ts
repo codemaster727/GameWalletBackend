@@ -1,19 +1,17 @@
 import { getEventBody } from "../resources/Utils"
 import { dynamoDBDocumentClient } from "../resources/Clients"
-import { Asset } from "../../../server/src/data/Asset"
-import { ListPortfolioAssetsRequest } from "../../../server/src/requests/ListPortfolioAssetsRequest"
 
 export async function handler(event: any) {
-    const request = getEventBody(event) as ListPortfolioAssetsRequest
+    const request = getEventBody(event)
     
     const response = await dynamoDBDocumentClient.scan({
-        TableName: "CryptoAssets",
-        FilterExpression: "#portfolio = :portfolio",
+        TableName: "CryptoBalances",
+        FilterExpression: "#user = :user",
         ExpressionAttributeNames: {
-            "#portfolio": "portfolio"
+            "#user": "user_id"
         },
         ExpressionAttributeValues: {
-            ":portfolio": request.portfolio
+            ":user": request.user
         }
     })
     

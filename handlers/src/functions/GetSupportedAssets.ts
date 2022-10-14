@@ -8,6 +8,6 @@ export async function handler(event: any) {
     return {
         statusCode: 200,
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify((response.Items ?? []).map(item => item?.name))
+        body: JSON.stringify((response.Items ?? []).map(item => item))
     }
 }

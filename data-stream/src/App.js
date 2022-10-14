@@ -81,12 +81,12 @@ connection_for_bnb.on("message", (data) => {
     });
 });
 async function getSupportedCurrencyPairs() {
-    const supportedAssets = await axios_1.default.get("https://t1ku4pvu63.execute-api.eu-west-1.amazonaws.com/default/GetSupportedAssets").then(response => response.data);
-    const supportedCurrencies = await axios_1.default.get("https://t1ku4pvu63.execute-api.eu-west-1.amazonaws.com/default/GetSupportedCurrencies").then(response => response.data);
-    return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `${asset}-${currency}`));
+    const supportedAssets = await axios_1.default.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedAssets").then(response => response.data);
+    const supportedCurrencies = await axios_1.default.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then(response => response.data);
+    return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `${asset.name}-${currency}`));
 }
 async function getBNBCurrencyPairs() {
     const supportedAssets = ["BNB"];
-    const supportedCurrencies = await axios_1.default.get("https://t1ku4pvu63.execute-api.eu-west-1.amazonaws.com/default/GetSupportedCurrencies").then(response => response.data);
+    const supportedCurrencies = await axios_1.default.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then(response => response.data);
     return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `5~CCCAGG~${asset}~${currency}`));
 }

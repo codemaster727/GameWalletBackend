@@ -24,27 +24,12 @@ export async function handler(event: any) {
             })
         }
     }
-    
-    const portfolio = dynamoDBDocumentClient.get({
-        TableName: "CryptoPortfolios",
-        Key: {
-            "user": request.user,
-            "id": request.portfolio
-        }
-    })
-    
-    if (await portfolio.then(response => response.Item) === undefined) {
-        return {
-            success: false,
-            error: "Invalid Portfolio"
-        }
-    }
-    
+
     const asset = dynamoDBDocumentClient.get({
         TableName: "CryptoAssets",
         Key: {
-            "portfolio": request.portfolio,
-            "name": request.asset
+            "user_id": request.user,
+            "token_id": request.asset
         }
     })
     
@@ -76,8 +61,8 @@ export async function handler(event: any) {
     await dynamoDBDocumentClient.update({
         TableName: "CryptoAssets",
         Key: {
-            "portfolio": request.portfolio,
-            "name": request.asset
+            "user_id": request.user,
+            "token_id": request.asset
         },
         ConditionExpression: conditionExpression,
         UpdateExpression: updateExpression,
@@ -92,10 +77,11 @@ export async function handler(event: any) {
     
     const deposit = {
         id: generateId(),
-        user: request.user,
-        portfolio: request.portfolio,
-        asset: request.asset,
-        amount: request.amount
+        user_id: request.user,
+        net_id: request.net,
+        token_id: request.asset,
+        amount: request.amount,
+        time: request.time
     }
 
     await dynamoDBDocumentClient.put({

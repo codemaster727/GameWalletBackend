@@ -4,32 +4,44 @@ import { SubscribeToTradeUpdatesRequest } from "../../../server/src/requests/Sub
 import { UserToken } from "../../../server/src/data/UserToken"
 
 export async function handler(event: any) {
-    const request = getEventBody(event) as SubscribeToTradeUpdatesRequest
+    // const request = getEventBody(event) as SubscribeToTradeUpdatesRequest
     
-    const authorization = await dynamoDBDocumentClient.get({
-        TableName: "CryptoUserTokens",
-        Key: {
-            "token": request.authorization
-        }
-    }).then(response => response.Item as UserToken ?? undefined)
+    // const authorization = await dynamoDBDocumentClient.get({
+    //     TableName: "CryptoUserTokens",
+    //     Key: {
+    //         "token": request.authorization
+    //     }
+    // }).then(response => response.Item as UserToken ?? undefined)
     
-    if (authorization === undefined || authorization.user !== request.user) {
-        return {
-            statusCode: 403,
-            body: "Invalid Credentials"
-        }
-    } else {
-        await dynamoDBDocumentClient.put({
-            TableName: "CryptoAssetStreamConnections",
-            Item: {
-                "id": event.requestContext.connectionId,
-                "user": request.user
-            }
-        })
+    // if (authorization === undefined || authorization.user !== request.user) {
+    //     return {
+    //         statusCode: 403,
+    //         body: "Invalid Credentials"
+    //     }
+    // } else {
+    //     await dynamoDBDocumentClient.put({
+    //         TableName: "CryptoAssetStreamConnections",
+    //         Item: {
+    //             "id": event.requestContext.connectionId,
+    //             "user": request.user
+    //         }
+    //     })
         
-        return {
-            statusCode: 200,
-            body: "Connected"
+    //     return {
+    //         statusCode: 200,
+    //         body: "Connected"
+    //     }
+    // }
+    await dynamoDBDocumentClient.put({
+        TableName: "CryptoAssetStreamConnections",
+        Item: {
+            "connectionId": event.requestContext.connectionId,
+            // "user": request.user
         }
+    })
+    
+    return {
+        statusCode: 200,
+        body: JSON.stringify(event)
     }
 }

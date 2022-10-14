@@ -1,6 +1,9 @@
 import { SNSClient } from "@aws-sdk/client-sns"
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb"
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
+import * as dotenv from 'dotenv'
+
+dotenv.config()
 
 export const snsClient = new SNSClient({
     region: process.env.AWS_REGION as string,
