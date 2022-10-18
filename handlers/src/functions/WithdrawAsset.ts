@@ -4,7 +4,18 @@ import { WithdrawAssetRequest } from "../../../server/src/requests/WithdrawAsset
 import { dynamoDBDocumentClient } from "../resources/Clients"
 import Decimal from "decimal.js"
 import Web3 from "web3"
+import path from 'path'
+import cjson from 'cjson'
+import Common from 'ethereumjs-common';
+import bs58 from 'bs58'
+import * as web3_sol from '@solana/web3.js'
+// import TX from 'ethereumjs-tx';
+const TX = require('ethereumjs-tx').Transaction;
 import { UserToken } from "../../../server/src/data/UserToken"
+
+console.log(path.resolve(__dirname, '../abi/ERC20.abi.json'));
+
+// const ABI = cjson.load(path.resolve(__dirname, '../abi/ERC20.abi.json'));
 const ABI = require('../abi/ERC20.abi.json');
 
 type RPC = {
@@ -13,15 +24,21 @@ type RPC = {
     tokens: string[][]
 }
 
+let prevNonce: number = 0;
+// let count: number = 0;
+
 export async function handler(event: any) {
-    // const request = Utils_1.getEventBody(event);
-    const request = {
-        "user": "1",
-        "net": "2",
-        "asset": "5",
-        "amount": 0.01,
-        "receiver": "0x0fbd6e14566A30906Bc0c927a75b1498aE87Fd43"
-    }
+    const request = getEventBody(event);
+    // count++;
+    // console.log(count);
+    // const request = {
+    //     "user": "1",
+    //     "net": "1",
+    //     "asset": "2",
+    //     "amount": 0.0003,
+    //     // "receiver": "4KyYVQbhMHXuTMNJaQQxj5KyVHYJ4cKgcGmYeWPZUUrZ" // SOL address
+    //     "receiver": "0x0fbd6e14566A30906Bc0c927a75b1498aE87Fd43" // ERC20 address
+    // }
     // if (request.authorization === undefined || request.authorization === "") {
     //     return {
     //         statusCode: 200,
@@ -52,6 +69,10 @@ export async function handler(event: any) {
     if (Number.isNaN(request.amount)) {
         return {
             statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
                 success: false,
                 error: "Invalid Amount"
@@ -93,6 +114,10 @@ export async function handler(event: any) {
     if (withdrawAmount.isNegative() || withdrawAmount.isZero()) {
         return {
             statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
                 success: false,
                 error: "Invalid Amount"
@@ -103,6 +128,10 @@ export async function handler(event: any) {
     if (totalAmount.isNegative()) {
         return {
             statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
                 success: false,
                 error: "Insufficient Balance"
@@ -117,139 +146,244 @@ export async function handler(event: any) {
         {net_id: "3", url: "https://rpc.ankr.com/arbitrum/", tokens: [["2", "eth"]]},
         {net_id: "4", url: "https://rpc.ankr.com/polygon/", tokens: [["3", "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"], ["4", "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"]]},
         {net_id: "5", url: "https://rpc.ankr.com/optimism/", tokens: [["9", "0x4200000000000000000000000000000000000042"]]},
-        {net_id: "8", url: "https://rpc.ankr.com/solana/", tokens: [["7", "eth"]]},
+        {net_id: "9", url: "https://rpc.ankr.com/solana/", tokens: [["7", "eth"]]}, // https://mainnet.neonevm.org	
     ]
 
     // testnet web3
     const web3_rpcs_test: RPC[] = [
-        {net_id: "1", url: "https://rpc.ankr.com/eth_goerli/", tokens: [["2", "eth"], ["3", "0x78dEca24CBa286C0f8d56370f5406B48cFCE2f86"]]},
-        {net_id: "2", url: "https://rpc.ankr.com/bsc_testnet_chapel/", tokens: [["5", "eth"], ["3", "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd"]]},
-        {net_id: "4", url: "https://rpc.ankr.com/polygon_mumbai/", tokens: [["3", "0xA02f6adc7926efeBBd59Fd43A84f4E0c0c91e832"]]},
-        {net_id: "5", url: "https://rpc.ankr.com/optimism_testnet/", tokens: [["9", "0x4200000000000000000000000000000000000042"]]},
-        {net_id: "8", url: "https://rpc.ankr.com/solana_devnet/", tokens: [["7", "eth"]]},
+        {net_id: "1", url: "https://goerli.infura.io/v3/e2e27cf1335c43beb497124f3d140bf2", tokens: [["1", "eth"], ["3", "0x07865c6E87B9F70255377e024ace6630C1Eaa37F"], ["4", "0x07865c6E87B9F70255377e024ace6630C1Eaa37F"]]},
+        {net_id: "2", url: "https://bsc-testnet.nodereal.io/v1/5d2c31fcd272410e986c2343bdadee45", tokens: [["5", "eth"], ["3", "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd"], ["4", "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd"]]},
+        {net_id: "4", url: "https://rpc-mumbai.maticvigil.com/", tokens: [["3", "0x2d7882beDcbfDDce29Ba99965dd3cdF7fcB10A1e"], ["4", "0x2d7882beDcbfDDce29Ba99965dd3cdF7fcB10A1e"]]}, //https://rpc-mumbai.matic.today
+        {net_id: "5", url: "https://goerli.optimism.io/", tokens: [["9", "0x4200000000000000000000000000000000000042"]]},
+        {net_id: "9", url: "https://api.devnet.solana.com/", tokens: [["7", "eth"]]}, // https://proxy.devnet.neonlabs.org/solana https://devnet.neonevm.org
     ]
 
-    const { PRIVATE_KEY, FROM_ADDRESS, ANKR_KEY } = process.env;
+    const chainIds = [
+        {net_id: "1", chain_id: "1", name: "mainnet"},
+        {net_id: "2", chain_id: "56", name: "bsctest"},
+        {net_id: "3", chain_id: "42161", name: "arbitrum"},
+        {net_id: "4", chain_id: "137", name: "polygon"},
+        {net_id: "5", chain_id: "10", name: "optimism"},
+        {net_id: "9", chain_id: "245022934", name: "solana"},
+    ];
+
+    const chainIds_test = [
+        {net_id: "1", chain_id: "5", name: "goerli"},
+        {net_id: "2", chain_id: "97", name: "bsctest"},
+        {net_id: "4", chain_id: "80001", name: "mumbai"},
+        {net_id: "5", chain_id: "420", name: "goerli optimism"},
+        {net_id: "9", chain_id: "245022926", name: "solana test"},
+    ];
+
+    const { PRIVATE_KEY, FROM_ADDRESS, ANKR_KEY, SOL_PRIVATE_KEY, SOL_FROM_ADDRESS } = process.env;
     const accountFrom = {
         privateKey: PRIVATE_KEY as string,
         address: FROM_ADDRESS as string,
     };
     const addressTo = request.receiver; // Change addressTo
-    const web3_url = web3_rpcs_test.filter(rpc => rpc.net_id === request.net)[0]?.url.concat(ANKR_KEY as string)
+    const web3_url = web3_rpcs_test.filter(rpc => rpc.net_id === request.net)[0]?.url// .concat(ANKR_KEY as string)
+    console.log(web3_url);
     const web3 = new Web3(web3_url);
-    console.log(web3);
+    // console.log(web3);
 
-    let send = null;
-    if (["1", "2", "5", "6", "7", "8"].includes(request.asset)) {
-        console.log("eth");
-        send = async () => {
+    const send = async () => {
+        if (["1", "2", "5", "6", "8"].includes(request.asset)) {
+            console.log("native");
             const nonce = await web3.eth.getTransactionCount(accountFrom?.address, 'latest');
+            const gasPrice = await web3.eth.getGasPrice()
         
             console.log(`Attempting to send transaction from ${accountFrom.address} to ${addressTo}`);
-        
+            console.log(nonce);
+            prevNonce = Math.max(nonce, prevNonce + 1);
+            console.log(prevNonce);
+            console.log(web3.utils.toWei(request.amount.toString(), 'ether'));
+
+            const chain = chainIds_test.find(chain => chain.net_id === request.net)
+
+            const common = Common.forCustomChain('mainnet', {
+                name: chain?.name,
+                networkId: parseInt(chain?.chain_id as string),
+                chainId: parseInt(chain?.chain_id as string)
+            }, 'petersburg');
+
+            const txData = {
+                gas: 21000,
+                gasPrice: web3.utils.toHex(gasPrice), 
+                to: addressTo.toLowerCase(),
+                value: web3.utils.toHex(web3.utils.toWei(request.amount.toString(), 'ether')),
+                nonce: prevNonce,
+            };
             // 4. Sign tx with PK
-            const createTransaction = await web3.eth.accounts.signTransaction(
-                {
-                    gas: 21000,
-                    to: addressTo,
-                    value: web3.utils.toWei('0.001', 'ether'),
-                    nonce: nonce,
-                },
-                accountFrom.privateKey
-            );  
+            // const createTransaction = await web3.eth.accounts.signTransaction(
+            //     txData,
+            //     accountFrom.privateKey
+            // );
+            // console.log(createTransaction);
+            // console.log(createTransaction.rawTransaction);
+            
+            // sign transaction with TX
+            const tx = new TX(txData, {common})
+            const privateKey = new Buffer(accountFrom.privateKey, 'hex')
+            tx.sign(privateKey)
+
+            return await sendSigned(tx)
+            async function sendSigned(tx: any) {
+                return new Promise(async function(resolve,reject){
+                    // send the signed transaction
+                    await web3.eth.sendSignedTransaction('0x' + tx.serialize().toString('hex'))
+                    .once('transactionHash', function(hash){
+                        console.log(hash);
+                        return hash;
+                    })
+                    .then(out => resolve(out))
+                    .catch(err => {
+                        // respond with error
+                        console.log(err);
+                        reject(err)
+                    })
+                }
+            )}
+
         
             // 5. Send tx and wait for receipt
-            const createReceipt = await web3.eth.sendSignedTransaction(createTransaction.rawTransaction as string);
-            return createReceipt.transactionHash;
-        };
-    }
-    else {
-        console.log("none eth");
-        send = async () => {
-            const token_addr = web3_rpcs_test.filter(rpc => rpc.net_id === request.net)[0]?.tokens.filter(a => a[0] === request.asset)[0][1]
-            console.log(token_addr);
-            const tokenInst = new web3.eth.Contract(ABI, token_addr);
-            const result = await tokenInst.methods.transfer(addressTo, web3.utils.toWei(request.amount.toString())).send({from: accountFrom.address, gas: 100000})
-            console.log(result);
-            return !(result.error);
+            // const createReceipt = await web3.eth.sendSignedTransaction(createTransaction.rawTransaction as string, (error, hash) => {
+            //     console.log(error);
+            //     console.log(hash);
+            // });
+            // console.log(`Transaction successful with hash: ${createReceipt.transactionHash}`);
+            // return "result"
         }
+        else if (request.asset === "7") {
+            const secret_key = bs58.decode(SOL_PRIVATE_KEY as string);
+            console.log(secret_key);
+            console.log(web3_sol.clusterApiUrl("devnet"));
+            // Connect to cluster
+            const connection = new web3_sol.Connection(web3_sol.clusterApiUrl("devnet"));
+            // Construct a `Keypair` from secret key
+            const from = web3_sol.Keypair.fromSecretKey(secret_key);
+            // Generate a new random public key
+            const to = request.receiver;
+            // Add transfer instruction to transaction
+            const transaction = new web3_sol.Transaction().add(
+                web3_sol.SystemProgram.transfer({
+                    fromPubkey: from.publicKey,
+                    toPubkey: new web3_sol.PublicKey(to),
+                    lamports: web3_sol.LAMPORTS_PER_SOL * request.amount,
+                })
+            );
+            // Sign transaction, broadcast, and confirm
+            const signature = await web3_sol.sendAndConfirmTransaction(
+                connection,
+                transaction,
+                [from]
+            );
+            console.log("SIGNATURE", signature);
+            console.log("SUCCESS");
+            return signature;
+        }
+        else if (["3", "4"].includes(request.asset)) {
+            console.log("USDT & USDC");
+            if (request.net === "7") {
+                return false;
+            }
+            else {
+                const token_addr = web3_rpcs_test.find(rpc => rpc.net_id === request.net)?.tokens.filter(a => a[0] === request.asset)[0][1]
+                console.log(token_addr);
+                web3.eth.accounts.wallet.add(accountFrom.privateKey);
+                const tokenInst = new web3.eth.Contract(ABI, token_addr);
+                const result = await tokenInst.methods.transfer(addressTo, web3.utils.toWei(request.amount.toString(), request.net === "1" ? "Mwei" : "ether")).send({from: accountFrom.address, gas: 100000})
+                console.log(result);
+                return !(result.error);
+            }
+        }
+        else return false;
     }
 
     // 6. Call send function
-    send().then(async result => {
-        if (result) {
-            console.log(`Transaction successful with hash: ${result}`);
-            const conditionExpression = generateConditionExpression(
-                "#amount",
-                "=",
-                ":previousAmount",
-                previousAmount.isZero() ? undefined : previousAmount.toString()
-            )
-            
-            if (totalAmount.isZero()) {
-                await dynamoDBDocumentClient.delete({
-                    TableName: "CryptoAssets",
-                    Key: {
-                        "user_id": request.user,
-                        "token_id": request.asset
-                    },
-                    ConditionExpression: conditionExpression,
-                    ExpressionAttributeNames: {
-                        "#amount": "amount"
-                    },
-                    ExpressionAttributeValues: {
-                        ":previousAmount": previousAmount.toString()
-                    }
-                })
-            } else if (totalAmount.isPositive()) {
-                await dynamoDBDocumentClient.update({
-                    TableName: "CryptoAssets",
-                    Key: {
-                        "user_id": request.user,
-                        "token_id": request.asset
-                    },
-                    ConditionExpression: conditionExpression,
-                    UpdateExpression: "SET #amount = :totalAmount",
-                    ExpressionAttributeNames: {
-                        "#amount": "amount"
-                    },
-                    ExpressionAttributeValues: {
-                        ":previousAmount": previousAmount.toString(),
-                        ":totalAmount": totalAmount.toString()
-                    }
-                })
-            }
-            
-            const withdrawal = {
-                id: generateId(),
-                user_id: request.user,
-                net_id: request.net,
-                token_id: request.asset,
-                amount: request.amount,
-                time: Date.now()
-            }
-            
-            await dynamoDBDocumentClient.put({
-                TableName: "CryptoWithdrawals",
-                Item: withdrawal
+    const result = await send();
+    console.log(result);
+    // const remove_result = web3.eth.accounts.wallet.remove(0);
+    // console.log(remove_result);
+    if (result) {
+        console.log(`Transaction successful with hash: ${result}`);
+        const conditionExpression = generateConditionExpression(
+            "#amount",
+            "=",
+            ":previousAmount",
+            previousAmount.isZero() ? undefined : previousAmount.toString()
+        )
+        
+        if (totalAmount.isZero()) {
+            await dynamoDBDocumentClient.delete({
+                TableName: "CryptoAssets",
+                Key: {
+                    "user_id": request.user,
+                    "token_id": request.asset
+                },
+                ConditionExpression: conditionExpression,
+                ExpressionAttributeNames: {
+                    "#amount": "amount"
+                },
+                ExpressionAttributeValues: {
+                    ":previousAmount": previousAmount.toString()
+                }
             })
-            
-            return {
-                statusCode: 200,
-                body: JSON.stringify({
-                    success: true,
-                    withdrawal: withdrawal
-                })
-            }
+        } else if (totalAmount.isPositive()) {
+            await dynamoDBDocumentClient.update({
+                TableName: "CryptoAssets",
+                Key: {
+                    "user_id": request.user,
+                    "token_id": request.asset
+                },
+                ConditionExpression: conditionExpression,
+                UpdateExpression: "SET #amount = :totalAmount",
+                ExpressionAttributeNames: {
+                    "#amount": "amount"
+                },
+                ExpressionAttributeValues: {
+                    ":previousAmount": previousAmount.toString(),
+                    ":totalAmount": totalAmount.toString()
+                }
+            })
         }
-        else {
-            return {
-                statusCode: 200,
-                body: JSON.stringify({
-                    success: false,
-                    error: "Tx failed unexpectedly"
-                })
-            }
+        
+        const withdrawal = {
+            id: generateId(),
+            user_id: request.user,
+            net_id: request.net,
+            token_id: request.asset,
+            amount: request.amount,
+            time: Date.now()
         }
-    })
+        
+        await dynamoDBDocumentClient.put({
+            TableName: "CryptoWithdrawals",
+            Item: withdrawal
+        })
+        
+        return {
+            statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                success: true,
+                withdrawal: withdrawal
+            })
+        }
+    }
+    else {
+        return {
+            statusCode: 200,
+            headers: {
+                "Access-Control-Allow-Origin": "*",
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                success: false,
+                error: JSON.stringify(request)
+            })
+        }
+    }
 }

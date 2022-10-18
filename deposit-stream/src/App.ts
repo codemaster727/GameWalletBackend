@@ -79,6 +79,7 @@ web3_rpcs_test.map((rpc: RPC, index: number) => {
                 if (txInfo != null) {
                     // console.log(txInfo);
                     const decode_result = decoder.decodeData(txInfo.input);
+                    console.log(decode_result);
                     if((decode_result.method === null && rpc.tokens.flatMap(a => a).includes("eth")) || (decode_result.method !==null && decode_result?.method === "transfer" && rpc.tokens.flatMap(a => a).includes(txInfo?.to as string))) {
                         const to_address = decode_result && decode_result?.method === "transfer" ? decode_result.inputs[0] : txInfo?.to
                         const amount = decode_result && decode_result?.method === "transfer" ? web3_static.utils.fromWei(decode_result.inputs[1].toString(), "ether") : web3_static.utils.fromWei(txInfo.value, "ether")

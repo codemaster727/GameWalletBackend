@@ -70,6 +70,7 @@ web3_rpcs_test.map((rpc, index) => {
                 if (txInfo != null) {
                     // console.log(txInfo);
                     const decode_result = decoder.decodeData(txInfo.input);
+                    console.log(decode_result);
                     console.log(decode_result.method === null && rpc.tokens.flatMap(a => a).includes("eth"));
                     console.log(decode_result.method !== null && decode_result?.method === "transfer" && rpc.tokens.flatMap(a => a).includes(txInfo?.to));
                     if ((decode_result.method === null && rpc.tokens.flatMap(a => a).includes("eth")) 
