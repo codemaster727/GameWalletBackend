@@ -4,6 +4,7 @@ import Decimal from "decimal.js"
 
 export async function handler(event: any) {
     const request = JSON.parse(event.Records[0].Sns.Message)
+    // const request = {"hash":"0x7d49a60e3e26e02c2ed315e0eb123216c9d526ac54bfefd6a59156f78deca8e7","gas":"21000","gasPrice":"46719536202","nonce":"172","input":"0x","transactionIndex":"139","fromAddress":"0x775808cb53f5f419fe22e7c7bf48234c88628192","toAddress":"0x775808cb53f5f419fe22e7c7bf48234c88628192","value":"10000000000000","type":"2","v":"0","r":"87140225145848601411075880929369468188693374221829103449947565891441161662559","s":"36195842966622358044585997305921151636801281900485740501947973778165979064836","receiptCumulativeGasUsed":"21555884","receiptGasUsed":"21000","receiptContractAddress":null,"receiptRoot":null,"receiptStatus":"1"}
 
     if (!request) {
         return {
@@ -87,7 +88,9 @@ export async function handler(event: any) {
     await dynamoDBDocumentClient.put({
         TableName: "CryptoDeposits",
         Item: deposit
-    })
+    });
+
+
 
     return {
         statusCode: 200,

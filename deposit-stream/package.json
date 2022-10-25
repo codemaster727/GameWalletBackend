@@ -10,6 +10,7 @@
         "@aws-sdk/client-dynamodb": "^3.25.0",
         "@aws-sdk/client-sns": "^3.21.0",
         "@aws-sdk/lib-dynamodb": "^3.25.0",
+        "alchemy-sdk": "^2.1.1",
         "axios": "^0.21.1",
         "dotenv": "^16.0.3",
         "ethereum-input-data-decoder": "^0.4.2",

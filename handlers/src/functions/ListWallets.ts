@@ -3,7 +3,7 @@ import { dynamoDBDocumentClient } from "../resources/Clients"
 import { ListPortfoliosRequest } from "../../../server/src/requests/ListPortfoliosRequest"
 
 export async function handler(event: any) {
-    const request = getEventBody(event) as ListPortfoliosRequest
+    const request = event.queryStringParameters;
     
     const response = await dynamoDBDocumentClient.scan({
         TableName: "CryptoWallets",

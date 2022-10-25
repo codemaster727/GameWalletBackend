@@ -13,9 +13,9 @@ module.exports = {
         "GetSupportedCurrencies": "./GetSupportedCurrencies.js",
         "ListPortfolios": "./ListPortfolios.js",
         "CreatePortfolio": "./CreatePortfolio.js",
-        "ListPortfolioAssets": "./ListPortfolioAssets.js",
         "DepositAsset": "./DepositAsset.js",
         "DepositToken": "./DepositToken.js",
+        "DepositTokenWebhook": "./DepositTokenWebhook.js",
         "WithdrawAsset": "./WithdrawAsset.js",
         "CreateTrade": "./CreateTrade.js",
         "CancelTrade": "./CancelTrade.js",
@@ -30,7 +30,8 @@ module.exports = {
         "BroadcastTradeUpdate": "./BroadcastTradeUpdate.js",
         "BroadcastAssetUpdate": "./BroadcastAssetUpdate.js",
         "CreateUser": "./CreateUser.js",
-        "LoginUser": "./LoginUser.js"
+        "LoginUser": "./LoginUser.js",
+        "ListTransactions": "./ListTransactions.js"
     },
     mode: "development",
     target: "node",

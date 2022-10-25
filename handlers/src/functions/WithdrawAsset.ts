@@ -9,13 +9,11 @@ import cjson from 'cjson'
 import Common from 'ethereumjs-common';
 import bs58 from 'bs58'
 import * as web3_sol from '@solana/web3.js'
-// import TX from 'ethereumjs-tx';
+// get the client
+import mysql from 'mysql2/promise';
+import { AddTransactionsRequest } from "../../../server/src/requests/ListTransactionsRequest"
 const TX = require('ethereumjs-tx').Transaction;
-import { UserToken } from "../../../server/src/data/UserToken"
 
-console.log(path.resolve(__dirname, '../abi/ERC20.abi.json'));
-
-// const ABI = cjson.load(path.resolve(__dirname, '../abi/ERC20.abi.json'));
 const ABI = require('../abi/ERC20.abi.json');
 
 type RPC = {
@@ -109,8 +107,6 @@ export async function handler(event: any) {
     const withdrawAmount = new Decimal(request.amount)
     const totalAmount = previousAmount.minus(withdrawAmount)
 
-    console.log(previousAmount);
-    
     if (withdrawAmount.isNegative() || withdrawAmount.isZero()) {
         return {
             statusCode: 200,
@@ -182,21 +178,16 @@ export async function handler(event: any) {
     };
     const addressTo = request.receiver; // Change addressTo
     const web3_url = web3_rpcs_test.filter(rpc => rpc.net_id === request.net)[0]?.url// .concat(ANKR_KEY as string)
-    console.log(web3_url);
     const web3 = new Web3(web3_url);
     // console.log(web3);
 
-    const send = async () => {
+    const send = async (): Promise<any> => {
         if (["1", "2", "5", "6", "8"].includes(request.asset)) {
             console.log("native");
             const nonce = await web3.eth.getTransactionCount(accountFrom?.address, 'latest');
             const gasPrice = await web3.eth.getGasPrice()
         
-            console.log(`Attempting to send transaction from ${accountFrom.address} to ${addressTo}`);
-            console.log(nonce);
             prevNonce = Math.max(nonce, prevNonce + 1);
-            console.log(prevNonce);
-            console.log(web3.utils.toWei(request.amount.toString(), 'ether'));
 
             const chain = chainIds_test.find(chain => chain.net_id === request.net)
 
@@ -223,26 +214,30 @@ export async function handler(event: any) {
             
             // sign transaction with TX
             const tx = new TX(txData, {common})
-            const privateKey = new Buffer(accountFrom.privateKey, 'hex')
+            const privateKey = Buffer.from(accountFrom.privateKey, 'hex')
             tx.sign(privateKey)
 
-            return await sendSigned(tx)
-            async function sendSigned(tx: any) {
-                return new Promise(async function(resolve,reject){
-                    // send the signed transaction
-                    await web3.eth.sendSignedTransaction('0x' + tx.serialize().toString('hex'))
-                    .once('transactionHash', function(hash){
-                        console.log(hash);
-                        return hash;
-                    })
-                    .then(out => resolve(out))
-                    .catch(err => {
-                        // respond with error
-                        console.log(err);
-                        reject(err)
-                    })
-                }
-            )}
+            // return await sendSigned(tx)
+            // async function sendSigned(tx: any) {
+                // return new Promise(async function(resolve,reject){
+                // send the signed transaction
+                return await web3.eth.sendSignedTransaction('0x' + tx.serialize().toString('hex'))
+                // .once('transactionHash', function(hash){
+                //     console.log(hash);
+                //     return hash;
+                // })
+                // .then(out => {
+                //     console.log(out);
+                //     return out;
+                // })
+                // .catch(err => {
+                //     // respond with error
+                //     console.log(err);
+                //     // reject(err)
+                //     return err
+                // })
+                // })
+            // }
 
         
             // 5. Send tx and wait for receipt
@@ -255,8 +250,6 @@ export async function handler(event: any) {
         }
         else if (request.asset === "7") {
             const secret_key = bs58.decode(SOL_PRIVATE_KEY as string);
-            console.log(secret_key);
-            console.log(web3_sol.clusterApiUrl("devnet"));
             // Connect to cluster
             const connection = new web3_sol.Connection(web3_sol.clusterApiUrl("devnet"));
             // Construct a `Keypair` from secret key
@@ -284,7 +277,7 @@ export async function handler(event: any) {
         else if (["3", "4"].includes(request.asset)) {
             console.log("USDT & USDC");
             if (request.net === "7") {
-                return false;
+                return null;
             }
             else {
                 const token_addr = web3_rpcs_test.find(rpc => rpc.net_id === request.net)?.tokens.filter(a => a[0] === request.asset)[0][1]
@@ -296,12 +289,14 @@ export async function handler(event: any) {
                 return !(result.error);
             }
         }
-        else return false;
+        else return null;
     }
 
     // 6. Call send function
     const result = await send();
+    console.log(typeof result);
     console.log(result);
+    console.log(result.to);
     // const remove_result = web3.eth.accounts.wallet.remove(0);
     // console.log(remove_result);
     if (result) {
@@ -346,6 +341,8 @@ export async function handler(event: any) {
                 }
             })
         }
+
+        const curr_time = Date.now();
         
         const withdrawal = {
             id: generateId(),
@@ -353,13 +350,23 @@ export async function handler(event: any) {
             net_id: request.net,
             token_id: request.asset,
             amount: request.amount,
-            time: Date.now()
+            created_at: curr_time
         }
         
         await dynamoDBDocumentClient.put({
             TableName: "CryptoWithdrawals",
             Item: withdrawal
         })
+
+        const connection = await mysql.createConnection({
+            host: process.env.DATABASE_HOST,
+            user: process.env.DATABASE_USER,
+            password: process.env.DATABASE_PW,
+            database: process.env.DATABASE_NAME
+          });
+
+        const query = `INSERT INTO ${process.env.DATABASE_NAME} (user_id, hash, address, token_id, net_id, type, amount, state, created_at) VALUES('${request.user}', '${result?.transactionHash}', '${result?.to}', '${request.asset}', '${request.net}', 'withdraw', ${request.amount}, 'success', ${curr_time})`;
+        const [rows, fields] = await connection.execute(query);
         
         return {
             statusCode: 200,

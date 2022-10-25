@@ -4,7 +4,7 @@ import { Asset } from "../../../server/src/data/Asset"
 import { ListUserRequest } from "../../../server/src/requests/ListUserRequest"
 
 export async function handler(event: any) {
-    const request: ListUserRequest = getEventBody(event)
+    const request: ListUserRequest = event.queryStringParameters;
     
     const response = await dynamoDBDocumentClient.scan({
         TableName: "CryptoAssets",
