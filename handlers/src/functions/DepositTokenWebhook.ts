@@ -37,7 +37,45 @@ export async function handler(event: any) {
   //     },
   //   ],
   // };
-  
+
+  let request: any = {};
+  let hash: string = "";
+  let amount: number = 0;
+  let to = "";
+
+  if (txData.txs?.length) {
+    request = txData.txs[0];
+    hash = request.hash;
+    amount = parseFloat(unit.fromWei(request.value, "ether"));
+    to = request.toAddress;
+  }
+  if (txData.erc20Transfers?.length) {
+    request = txData.erc20Transfers[0];
+    hash = request.hash;
+    amount = parseFloat(request.valueWithDecimals);
+    to = request.to;
+  }
+
+  if (!amount) {
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        success: false,
+        error: "Invalid Data",
+      }),
+    };
+  }
+
+  if (Number.isNaN(amount)) {
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        success: false,
+        error: "Invalid Amount",
+      }),
+    };
+  }
+
   const response = await dynamoDBDocumentClient.scan({
     TableName: "CryptoAssetStreamConnections",
     // IndexName: "CryptoTradeStreamConnectionsUserIndex",
@@ -48,6 +86,14 @@ export async function handler(event: any) {
     // ExpressionAttributeValues: {
     //     ":user": update.user
     // }
+  });
+
+  await dynamoDBDocumentClient.put({
+    TableName: "User",
+    Item: {
+      id: Date.now().toString(),
+      data: JSON.stringify(txData),
+    }
   });
 
   const connections = response.Items ?? []
@@ -77,42 +123,6 @@ export async function handler(event: any) {
       body: JSON.stringify({
         success: true,
         deposit: {status: "not-confirmed"},
-      }),
-    };
-  }
-
-  let request: any = {};
-  let hash: string = "";
-  let amount: number = 0;
-  let to = "";
-  
-  if (txData.txs?.length) {
-    const request = txData.txs[0];
-    hash = request.hash;
-    amount = parseFloat(unit.fromWei(request.value, "ether"));
-    to = request.toAddress;
-  } else {
-    request = txData.erc20Transfers
-    hash = request.hash
-    amount = parseFloat(request.valueWithDecimals)
-    to = request.to
-  }
-  if (!amount) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: false,
-        error: "Invalid Data",
-      }),
-    };
-  }
-
-  if (Number.isNaN(amount)) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: false,
-        error: "Invalid Amount",
       }),
     };
   }
@@ -217,6 +227,7 @@ export async function handler(event: any) {
     token_id: token.id,
     amount: amount,
     time: curr_time,
+    status: "confirmed"
   };
 
   await dynamoDBDocumentClient.put({

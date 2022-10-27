@@ -25,7 +25,7 @@ connection.on("message", (data: any) => {
         .filter(update => typeof update === "string")
         .map(update => update as string)
         .map(update => JSON.parse(update))
-        .filter(update => update.type === "ticker")
+        .filter(update => update.type === "ticker" && update.price)
         .map(update => ({
             source: "Coinbase",
             asset: update.product_id,
@@ -40,6 +40,7 @@ connection.on("message", (data: any) => {
             if (update.time > Math.max(lastUpdateTimes.get(update.asset) + updateInterval, lastUpdateTimes.get("last") + updateIntervalLast)) {
                 lastUpdateTimes.set(update.asset, update.time)
                 lastUpdateTimes.set("last", update.time)
+                console.log(update);
                 snsClient.send(new PublishCommand({
                     TopicArn: process.env.DATA_STREAM_TOPIC as string,
                     Message: JSON.stringify(update)
@@ -77,6 +78,8 @@ connection_for_bnb.on("message", (data: any) => {
         .forEach((update: PriceData) => {
             if (update.time > Math.max(lastUpdateTimesBNB.get(update.asset) + updateInterval, lastUpdateTimes.get("last") + updateIntervalLast)) {
                 lastUpdateTimesBNB.set(update.asset, update.time)
+                lastUpdateTimes.set("last", update.time)
+                console.log(update);
                 snsClient.send(new PublishCommand({
                     TopicArn: process.env.DATA_STREAM_TOPIC as string,
                     Message: JSON.stringify(update)
@@ -87,12 +90,12 @@ connection_for_bnb.on("message", (data: any) => {
 
 async function getSupportedCurrencyPairs(): Promise<string[]> {
     const supportedAssets: Token[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedAssets").then(response => response.data)
-    const supportedCurrencies: string[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then(response => response.data)
+    const supportedCurrencies: string[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then((response: any) => response.data)
     return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `${asset.name}-${currency}`))
 }
 
 async function getBNBCurrencyPairs(): Promise<string[]> {
     const supportedAssets: string[] = ["BNB"]
-    const supportedCurrencies: string[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then(response => response.data)
+    const supportedCurrencies: string[] = await axios.get("https://4zcsu9v606.execute-api.eu-west-1.amazonaws.com/GetSupportedCurrencies").then((response: any) => response.data)
     return supportedAssets.flatMap(asset => supportedCurrencies.map(currency => `5~CCCAGG~${asset}~${currency}`))
 }
