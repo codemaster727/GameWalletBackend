@@ -9,49 +9,39 @@ const unit = require("ethjs-unit");
 export async function handler(event: any) {
   // const txData = JSON.parse(event.Records[0].Sns.Message)[0];
   const txData = getEventBody(event);
-  // const txData = {
-  //   chainId: "0x5",
-  //   txs: [
-  //     {
-  //       hash:
-  //         "0x7d49a60e3e26e02c2ed315e0eb123216c9d526ac54bfefd6a59156f78deca8e7",
-  //       gas: "21000",
-  //       gasPrice: "46719536202",
-  //       nonce: "172",
-  //       input: "0x",
-  //       transactionIndex: "139",
-  //       fromAddress: "0x775808cb53f5f419fe22e7c7bf48234c88628192",
-  //       toAddress: "0x775808cb53f5f419fe22e7c7bf48234c88628192",
-  //       value: "10000000000000",
-  //       type: "2",
-  //       v: "0",
-  //       r:
-  //         "87140225145848601411075880929369468188693374221829103449947565891441161662559",
-  //       s:
-  //         "36195842966622358044585997305921151636801281900485740501947973778165979064836",
-  //       receiptCumulativeGasUsed: "21555884",
-  //       receiptGasUsed: "21000",
-  //       receiptContractAddress: null,
-  //       receiptRoot: null,
-  //       receiptStatus: "1",
-  //     },
-  //   ],
-  // };
+  // const txData: any = {
+  //   "address":"G6k169uDURPkhdwbD7eCDvDTh5mMCdvsG8TrgQrR42tB",
+  //   "txId":"4ivg51NF9oaU9Na4MaiGR4pVaCwW5sYxzCTrCTLqCKbjaKdE2hWEgFXEa7uLMuRPZvY3swDxKHTJKm4FvaTKBBNf",
+  //   "blockNumber":177495572,
+  //   "type":"native",
+  //   "asset":"SOL",
+  //   "amount":"0.0001",
+  //   "subscriptionType":"ADDRESS_TRANSACTION"
+  // }
+  const chainIds: {[key: string]: string} = {
+    "BTC": "0",
+    "LTC": "18289463",
+    "SOL": "245022926",
+    "TRON": "1230",
+  }
 
   let request: any = {};
   let hash: string = "";
   let amount: number = 0;
   let to = "";
   let tokenContract = "";
+  let chainId = "5";
 
   if(txData.subscriptionType === "ADDRESS_TRANSACTION") {
     request = txData;
     hash = request.txId;
     amount = parseFloat(request.amount);
     to = request.address;
-    tokenContract = request.asset ?? ""
+    tokenContract = request.asset.length < 5 ? "" : request.asset;
+    chainId = chainIds[request.asset] ?? "1230"
   }
   else {
+    chainId = parseInt(txData.chainId).toString();
     if (txData.txs?.length) {
       request = txData.txs[0];
       hash = request.hash;
@@ -168,7 +158,7 @@ export async function handler(event: any) {
         "#chain_id": "chain_id",
       },
       ExpressionAttributeValues: {
-        ":chainId": parseInt(txData.chainId).toString(),
+        ":chainId": chainId,
       },
     })
     .then((response: any) => response.Items[0] ?? null);
@@ -198,15 +188,21 @@ export async function handler(event: any) {
     (t: any) => t.address[net.id] === (tokenContract)
   );
 
-  const asset = dynamoDBDocumentClient.get({
+  console.log(wallet);
+  console.log(token);
+
+  const asset = await dynamoDBDocumentClient.get({
     TableName: "CryptoAssets",
     Key: {
-      user_id: wallet?.user_id,
-      token_id: token?.id,
+      "user_id": wallet?.user_id ?? "",
+      "token_id": token?.id ?? "",
     },
-  });
+  })
+  .then((response) => response?.Item);
 
-  if (!(await asset).Item) {
+  console.log(asset);
+
+  if (!asset) {
     return {
       statusCode: 200,
       headers: {
@@ -220,10 +216,7 @@ export async function handler(event: any) {
     };
   }
 
-  const previousAmount = await asset
-    .then((response) => response.Item)
-    .then((asset) => asset?.amount ?? "0")
-    .then((amount) => new Decimal(amount));
+  const previousAmount = new Decimal(asset?.amount ?? "0");
   const depositAmount = new Decimal(amount);
   const totalAmount = previousAmount.plus(depositAmount);
 
@@ -253,8 +246,8 @@ export async function handler(event: any) {
   await dynamoDBDocumentClient.update({
     TableName: "CryptoAssets",
     Key: {
-      user_id: wallet.user_id,
-      token_id: token.id,
+      "user_id": wallet.user_id,
+      "token_id": token.id,
     },
     ConditionExpression: conditionExpression,
     UpdateExpression: updateExpression,

@@ -41,6 +41,7 @@ export async function handler(event: any) {
   } else {
       query = query.slice(0, query.length - 3);
   }
+  query = query.concat('ORDER BY id DESC ')
   query = query.concat(`LIMIT ${limit ?? 10} OFFSET ${(page_number ?? 0) * (limit ?? 10)}`);
 
   // simple query

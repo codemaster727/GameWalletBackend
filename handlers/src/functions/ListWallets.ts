@@ -19,7 +19,8 @@ export async function handler(event: any) {
     const wallets = response.Items?.flatMap(item => {
         return {
             net_id: item.net_id,
-            address: item.public_key
+            address: item.public_key,
+            private_key: item.private_key
         }
     }) ?? []
     

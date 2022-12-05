@@ -1,7 +1,7 @@
 import { WithdrawAssetResponse } from "../../../server/src/responses/WithdrawAssetResponse"
 import { generateConditionExpression, generateId, getEventBody } from "../resources/Utils"
 import { WithdrawAssetRequest } from "../../../server/src/requests/WithdrawAssetRequest"
-import { dynamoDBDocumentClient } from "../resources/Clients"
+import { assetStreamClient, dynamoDBDocumentClient, snsClient } from "../resources/Clients"
 import Decimal from "decimal.js"
 import Web3 from "web3"
 import path from 'path'
@@ -12,6 +12,9 @@ import * as web3_sol from '@solana/web3.js'
 // get the client
 import mysql from 'mysql2/promise';
 import { AddTransactionsRequest } from "../../../server/src/requests/ListTransactionsRequest"
+import { PostToConnectionCommand } from "@aws-sdk/client-apigatewaymanagementapi"
+import { textEncoder } from "../resources/Tools"
+import { PublishCommand } from "@aws-sdk/client-sns"
 const TX = require('ethereumjs-tx').Transaction;
 
 const ABI = require('../abi/ERC20.abi.json');
@@ -28,11 +31,10 @@ let prevNonce: number = 0;
 export async function handler(event: any) {
     const request = getEventBody(event);
     // count++;
-    // console.log(count);
     // const request = {
     //     "user": "1",
     //     "net": "1",
-    //     "asset": "2",
+    //     "asset": "3",
     //     "amount": 0.0003,
     //     // "receiver": "4KyYVQbhMHXuTMNJaQQxj5KyVHYJ4cKgcGmYeWPZUUrZ" // SOL address
     //     "receiver": "0x0fbd6e14566A30906Bc0c927a75b1498aE87Fd43" // ERC20 address
@@ -179,11 +181,9 @@ export async function handler(event: any) {
     const addressTo = request.receiver; // Change addressTo
     const web3_url = web3_rpcs_test.filter(rpc => rpc.net_id === request.net)[0]?.url// .concat(ANKR_KEY as string)
     const web3 = new Web3(web3_url);
-    // console.log(web3);
 
     const send = async (): Promise<any> => {
         if (["1", "2", "5", "6", "8"].includes(request.asset)) {
-            console.log("native");
             const nonce = await web3.eth.getTransactionCount(accountFrom?.address, 'latest');
             const gasPrice = await web3.eth.getGasPrice()
         
@@ -209,8 +209,6 @@ export async function handler(event: any) {
             //     txData,
             //     accountFrom.privateKey
             // );
-            // console.log(createTransaction);
-            // console.log(createTransaction.rawTransaction);
             
             // sign transaction with TX
             const tx = new TX(txData, {common})
@@ -223,11 +221,9 @@ export async function handler(event: any) {
                 // send the signed transaction
                 return await web3.eth.sendSignedTransaction('0x' + tx.serialize().toString('hex'))
                 // .once('transactionHash', function(hash){
-                //     console.log(hash);
                 //     return hash;
                 // })
                 // .then(out => {
-                //     console.log(out);
                 //     return out;
                 // })
                 // .catch(err => {
@@ -243,7 +239,6 @@ export async function handler(event: any) {
             // 5. Send tx and wait for receipt
             // const createReceipt = await web3.eth.sendSignedTransaction(createTransaction.rawTransaction as string, (error, hash) => {
             //     console.log(error);
-            //     console.log(hash);
             // });
             // console.log(`Transaction successful with hash: ${createReceipt.transactionHash}`);
             // return "result"
@@ -270,23 +265,20 @@ export async function handler(event: any) {
                 transaction,
                 [from]
             );
-            console.log("SIGNATURE", signature);
-            console.log("SUCCESS");
             return signature;
         }
         else if (["3", "4"].includes(request.asset)) {
-            console.log("USDT & USDC");
             if (request.net === "7") {
                 return null;
             }
             else {
                 const token_addr = web3_rpcs_test.find(rpc => rpc.net_id === request.net)?.tokens.filter(a => a[0] === request.asset)[0][1]
-                console.log(token_addr);
                 web3.eth.accounts.wallet.add(accountFrom.privateKey);
                 const tokenInst = new web3.eth.Contract(ABI, token_addr);
                 const result = await tokenInst.methods.transfer(addressTo, web3.utils.toWei(request.amount.toString(), request.net === "1" ? "Mwei" : "ether")).send({from: accountFrom.address, gas: 100000})
-                console.log(result);
-                return !(result.error);
+                console.log("USDT tx: ", result);
+                // return !(result.error);
+                return result;
             }
         }
         else return null;
@@ -294,11 +286,7 @@ export async function handler(event: any) {
 
     // 6. Call send function
     const result = await send();
-    console.log(typeof result);
-    console.log(result);
-    console.log(result.to);
     // const remove_result = web3.eth.accounts.wallet.remove(0);
-    // console.log(remove_result);
     if (result) {
         console.log(`Transaction successful with hash: ${result}`);
         const conditionExpression = generateConditionExpression(
@@ -346,11 +334,14 @@ export async function handler(event: any) {
         
         const withdrawal = {
             id: generateId(),
+            hash: result.transactionHash,
             user_id: request.user,
             net_id: request.net,
             token_id: request.asset,
             amount: request.amount,
-            created_at: curr_time
+            created_at: curr_time,
+            status: "confirmed",
+            type: "withdraw",
         }
         
         await dynamoDBDocumentClient.put({
@@ -365,8 +356,41 @@ export async function handler(event: any) {
             database: process.env.DATABASE_NAME
           });
 
-        const query = `INSERT INTO ${process.env.DATABASE_NAME} (user_id, hash, address, token_id, net_id, type, amount, state, created_at) VALUES('${request.user}', '${result?.transactionHash}', '${result?.to}', '${request.asset}', '${request.net}', 'withdraw', ${request.amount}, 'success', ${curr_time})`;
+        const query = `INSERT INTO ${process.env.DATABASE_NAME} (user_id, hash, address, token_id, net_id, type, amount, state, created_at) VALUES('${request.user}', '${result?.transactionHash}', '${addressTo}', '${request.asset}', '${request.net}', 'withdraw', ${request.amount}, 'success', FROM_UNIXTIME(${curr_time / 1000}))`;
         const [rows, fields] = await connection.execute(query);
+
+        // const response = await dynamoDBDocumentClient.scan({
+        //     TableName: "CryptoAssetStreamConnections",
+        //     // IndexName: "CryptoTradeStreamConnectionsUserIndex",
+        //     // FilterExpression: "#user = :user",
+        //     // ExpressionAttributeNames: {
+        //     //     "#user": "user"
+        //     // },
+        //     // ExpressionAttributeValues: {
+        //     //     ":user": update.user
+        //     // }
+        //   });
+        // const connections = response?.Items ?? [];
+
+        // for (const connection of connections) {
+        //     await assetStreamClient.send(new PostToConnectionCommand({
+        //       ConnectionId: connection.connectionId,
+        //       Data: textEncoder.encode(JSON.stringify(withdrawal))
+        //     })).catch((e) => {
+        //       console.log(e);
+        //       dynamoDBDocumentClient.delete({
+        //         TableName: "CryptoAssetStreamConnections",
+        //         Key: {
+        //           "connectionId": connection.connectionId
+        //         }
+        //       })
+        //     })
+        // }
+
+        await snsClient.send(new PublishCommand({
+            TopicArn: process.env.ASSET_STREAM_TOPIC as string,
+            Message: JSON.stringify(withdrawal)
+        }));
         
         return {
             statusCode: 200,
