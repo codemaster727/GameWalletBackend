@@ -1,5 +1,5 @@
 import { WithdrawAssetResponse } from "../../../server/src/responses/WithdrawAssetResponse"
-import { generateConditionExpression, generateId, getEventBody } from "../resources/Utils"
+import { generateConditionExpression, generateId, getEventBody, removePrefix } from "../resources/Utils"
 import { WithdrawAssetRequest } from "../../../server/src/requests/WithdrawAssetRequest"
 import { assetStreamClient, dynamoDBDocumentClient, snsClient } from "../resources/Clients"
 import Decimal from "decimal.js"
@@ -34,7 +34,7 @@ export async function handler(event: any) {
     // const request = {
     //     "user": "1",
     //     "net": "1",
-    //     "asset": "3",
+    //     "asset": "2",
     //     "amount": 0.0003,
     //     // "receiver": "4KyYVQbhMHXuTMNJaQQxj5KyVHYJ4cKgcGmYeWPZUUrZ" // SOL address
     //     "receiver": "0x0fbd6e14566A30906Bc0c927a75b1498aE87Fd43" // ERC20 address
@@ -137,6 +137,22 @@ export async function handler(event: any) {
         }
     }
 
+    const wallet = await dynamoDBDocumentClient
+    .scan({
+      TableName: "CryptoWallets",
+      FilterExpression: "#user = :user AND #net_id = :net_id",
+      ExpressionAttributeNames: {
+        "#user": "user_id",
+        "#net_id": "net_id",
+      },
+      ExpressionAttributeValues: {
+        ":user": request.user,
+        ":net_id": request.net,
+      },
+    })
+    .then((response: any) => response.Items[0] ?? null);
+    console.log(wallet);
+
     //mainnet web3
     const web3_rpcs: RPC[] = [
         {net_id: "1", url: "https://rpc.ankr.com/eth/", tokens: [["2", "eth"], ["3", "0xdac17f958d2ee523a2206206994597c13d831ec7"], ["4", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"]]},
@@ -174,17 +190,18 @@ export async function handler(event: any) {
     ];
 
     const { PRIVATE_KEY, FROM_ADDRESS, ANKR_KEY, SOL_PRIVATE_KEY, SOL_FROM_ADDRESS } = process.env;
-    const accountFrom = {
-        privateKey: PRIVATE_KEY as string,
-        address: FROM_ADDRESS as string,
-    };
+    // const accountFrom = {
+    //     private_key: PRIVATE_KEY as string,
+    //     public_key: FROM_ADDRESS as string,
+    // };
+    const accountFrom = wallet;
     const addressTo = request.receiver; // Change addressTo
     const web3_url = web3_rpcs_test.filter(rpc => rpc.net_id === request.net)[0]?.url// .concat(ANKR_KEY as string)
     const web3 = new Web3(web3_url);
 
     const send = async (): Promise<any> => {
         if (["1", "2", "5", "6", "8"].includes(request.asset)) {
-            const nonce = await web3.eth.getTransactionCount(accountFrom?.address, 'latest');
+            const nonce = await web3.eth.getTransactionCount(accountFrom?.public_key, 'latest');
             const gasPrice = await web3.eth.getGasPrice()
         
             prevNonce = Math.max(nonce, prevNonce + 1);
@@ -207,12 +224,12 @@ export async function handler(event: any) {
             // 4. Sign tx with PK
             // const createTransaction = await web3.eth.accounts.signTransaction(
             //     txData,
-            //     accountFrom.privateKey
+            //     accountFrom.private_key
             // );
             
             // sign transaction with TX
             const tx = new TX(txData, {common})
-            const privateKey = Buffer.from(accountFrom.privateKey, 'hex')
+            const privateKey = Buffer.from(removePrefix(wallet.private_key), 'hex')
             tx.sign(privateKey)
 
             // return await sendSigned(tx)
@@ -273,9 +290,9 @@ export async function handler(event: any) {
             }
             else {
                 const token_addr = web3_rpcs_test.find(rpc => rpc.net_id === request.net)?.tokens.filter(a => a[0] === request.asset)[0][1]
-                web3.eth.accounts.wallet.add(accountFrom.privateKey);
+                web3.eth.accounts.wallet.add(wallet.private_key);
                 const tokenInst = new web3.eth.Contract(ABI, token_addr);
-                const result = await tokenInst.methods.transfer(addressTo, web3.utils.toWei(request.amount.toString(), request.net === "1" ? "Mwei" : "ether")).send({from: accountFrom.address, gas: 100000})
+                const result = await tokenInst.methods.transfer(addressTo, web3.utils.toWei(request.amount.toString(), request.net === "1" ? "Mwei" : "ether")).send({from: accountFrom.public_key, gas: 100000})
                 console.log("USDT tx: ", result);
                 // return !(result.error);
                 return result;

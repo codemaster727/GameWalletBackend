@@ -39,3 +39,7 @@ export function generateConditionExpression(
         return `attribute_not_exists(${expressionAttributeName})`
     }
 }
+
+export const removePrefix = (value: string) => {
+    return value.startsWith("0x") ? value.replace("0x", "") : value;
+}
